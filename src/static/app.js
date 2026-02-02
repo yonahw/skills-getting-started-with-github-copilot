@@ -23,9 +23,15 @@ document.addEventListener("DOMContentLoaded", () => {
         // Build participants list HTML
         let participantsHTML = '<div class="participants"><h5>Participants:</h5>';
         if (details.participants.length > 0) {
-          participantsHTML += '<ul>';
+          participantsHTML += '<ul class="participants-list">';
           details.participants.forEach(participant => {
-            participantsHTML += `<li>${participant}</li>`;
+            participantsHTML += `
+              <li>
+                <span class="participant-email">${participant}</span>
+                <button class="delete-icon" data-activity="${name}" data-email="${participant}" title="Unregister participant">
+                  ✕
+                </button>
+              </li>`;
           });
           participantsHTML += '</ul>';
         } else {
@@ -49,9 +55,59 @@ document.addEventListener("DOMContentLoaded", () => {
         option.textContent = name;
         activitySelect.appendChild(option);
       });
+
+      // Add event listeners for delete buttons
+      document.querySelectorAll(".delete-icon").forEach(button => {
+        button.addEventListener("click", handleUnregister);
+      });
     } catch (error) {
       activitiesList.innerHTML = "<p>Failed to load activities. Please try again later.</p>";
       console.error("Error fetching activities:", error);
+    }
+  }
+
+  // Handle unregister participant
+  async function handleUnregister(event) {
+    const button = event.target;
+    const activity = button.dataset.activity;
+    const email = button.dataset.email;
+
+    if (!confirm(`Are you sure you want to unregister ${email} from ${activity}?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `/activities/${encodeURIComponent(activity)}/unregister?email=${encodeURIComponent(email)}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      const result = await response.json();
+
+      if (response.ok) {
+        messageDiv.textContent = result.message;
+        messageDiv.className = "success";
+        messageDiv.classList.remove("hidden");
+
+        // Refresh activities list
+        await fetchActivities();
+
+        // Hide message after 5 seconds
+        setTimeout(() => {
+          messageDiv.classList.add("hidden");
+        }, 5000);
+      } else {
+        messageDiv.textContent = result.detail || "An error occurred";
+        messageDiv.className = "error";
+        messageDiv.classList.remove("hidden");
+      }
+    } catch (error) {
+      messageDiv.textContent = "Failed to unregister. Please try again.";
+      messageDiv.className = "error";
+      messageDiv.classList.remove("hidden");
+      console.error("Error unregistering:", error);
     }
   }
 
@@ -76,6 +132,9 @@ document.addEventListener("DOMContentLoaded", () => {
         messageDiv.textContent = result.message;
         messageDiv.className = "success";
         signupForm.reset();
+        
+        // Refresh activities list to show the new participant
+        await fetchActivities();
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
         messageDiv.className = "error";
